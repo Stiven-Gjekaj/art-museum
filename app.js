@@ -146,6 +146,13 @@
     return Array.from(new Set(arr));
   }
 
+  // Prefer the Met CDN's medium (~web-large) variant when possible (~720-1280px)
+  function toWebLarge(url) {
+    if (!url) return '';
+    const u = ensureHttps(url);
+    return u.replace(/\/original\//i, '/web-large/');
+  }
+
   // Tiny cache (localStorage)
   const CACHE_KEY = 'am-cache-v1';
   const CACHE_TTL_MS = 1000 * 60 * 60 * 24; // 24 hours
@@ -210,11 +217,14 @@ async function fetchRandomArtworks(count = 10, signal) {
         for (const d of details) {
           if (!d) continue;
           const additional = Array.isArray(d.additionalImages) ? d.additionalImages : [];
+          // Build candidates preferring web-large (or transformed to web-large) first
           const prioritized = [
+            toWebLarge(d.primaryImage),
             d.primaryImageSmall,
+            ...additional.filter(Boolean).map(toWebLarge),
             ...additional.filter(Boolean).filter(u => /web[-]?large/i.test(u || '')),
             d.primaryImage,
-            ...additional
+            ...additional,
           ];
           const candidates = uniq(prioritized.filter(Boolean).map(ensureHttps));
           const img = candidates[0] || '';
