@@ -52,6 +52,22 @@
     return s || fallback;
   }
 
+  function ensureHttps(url) {
+    if (!url) return '';
+    try {
+      const u = new URL(url, 'https://');
+      if (u.protocol !== 'https:') u.protocol = 'https:';
+      return u.toString();
+    } catch {
+      // If it's a bare path or invalid, just return as is
+      return url.replace(/^http:\/\//i, 'https://');
+    }
+  }
+
+  function uniq(arr) {
+    return Array.from(new Set(arr));
+  }
+
   // Data fetching
   async function fetchRandomArtworks(count = 10, signal) {
     const search = await fetchJson(SEARCH_URL, { signal });
@@ -67,7 +83,12 @@
 
     const items = [];
     for (const d of details) {
-      const img = d.primaryImageSmall || d.primaryImage || '';
+      const candidates = uniq([
+        d.primaryImageSmall,
+        d.primaryImage,
+        ...(Array.isArray(d.additionalImages) ? d.additionalImages : []),
+      ].filter(Boolean).map(ensureHttps));
+      const img = candidates[0] || '';
       if (!img) continue;
       items.push({
         id: d.objectID,
@@ -75,6 +96,7 @@
         artist: cleanText(d.artistDisplayName, 'Unknown artist'),
         date: cleanText(d.objectDate, ''),
         image: img,
+        images: candidates,
         alt: `${cleanText(d.title, 'Untitled')} by ${cleanText(d.artistDisplayName, 'Unknown artist')}`,
         medium: cleanText(d.medium || d.creditLine || d.classification || d.department || '', ''),
         culture: cleanText(d.culture || d.period || '', ''),
@@ -152,6 +174,23 @@
       img.alt = item.alt;
       img.loading = 'lazy';
       img.decoding = 'async';
+      img.referrerPolicy = 'no-referrer';
+
+      // Fallback through candidate images if any fail
+      if (Array.isArray(item.images) && item.images.length > 1) {
+        let idx = 0;
+        img.addEventListener('error', () => {
+          idx += 1;
+          if (idx < item.images.length) {
+            img.src = item.images[idx];
+          } else {
+            // Final fallback: hide broken image but keep card usable
+            img.style.display = 'none';
+            media.style.background = 'linear-gradient(135deg, rgba(255,255,255,0.15), rgba(255,255,255,0.05))';
+            media.title = 'Image unavailable';
+          }
+        }, { once: false });
+      }
       media.appendChild(img);
 
       const content = document.createElement('div');
@@ -343,4 +382,3 @@
   initTheme();
   loadArtworks();
 })();
-
