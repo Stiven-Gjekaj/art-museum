@@ -1,68 +1,39 @@
 ﻿# Artwork Museum
 
-A sleek, single-page gallery powered by The Met Collection API. Modern light/dark gradient backgrounds, glassy cards, smooth interactions, and strong accessibility.
+A sleek, single-page viewer powered by The Met Collection API. Modern light/dark gradients, smooth interactions, and strong accessibility.
 
 - No frameworks: vanilla HTML/CSS/JS
-- Fast: lazy images, mid-size assets, cached first paint, skeleton loaders
+- Fast: preloaded buffer, cached first paint, skeleton loaders
 - Reliable: retry/backoff and CORS-friendly proxy fallbacks
-- Accessible: semantic structure, keyboard navigation, focus trap, proper ARIA
+- Accessible: semantic structure, focus trap, proper ARIA
 
-## Features
+## Features (New)
 
-- Random artworks: Searches The Met API with `hasImages=true` and fetches object details.
-- Responsive grid: 1–2 columns on small screens, 2–3 on tablets, ~4 on desktop.
-- Cards: fixed-aspect image (object-fit: cover), 2-line truncated title, artist + year.
-- Details modal: larger image, title, artist, year, medium/description (when available), and a link to the work’s page at The Met.
-- Header layout: Refresh on the left, uppercase centered title (Bebas Neue), theme toggle on the right.
-- Performance:
-  - Uses “web-large” image variants (~720–1280px) for faster loads with graceful fallbacks.
-  - Lazy-loads card images; boosts priority for the first few.
-  - First load “gates” rendering until several images are ready to reduce pop-in.
-  - Caches the last successful gallery in `localStorage` and renders it instantly on revisit.
-  - On GitHub Pages, concurrency and prefetching are tuned down to avoid API throttling.
-- Reliability:
-  - Request retry with exponential backoff.
-  - Automatic fallback to public CORS proxies (AllOrigins, isomorphic-git) if the direct API call fails.
-  - Supports a custom proxy base via `window.MET_API_BASE` for maximum reliability.
-- Accessibility: semantic HTML, keyboard focus styles, cards are buttons (Enter opens), dialog with `aria-modal` + focus trap, ESC/overlay/close button to dismiss, and meaningful alt text.
-- Theme: light/dark mode toggle saved in `localStorage`; light uses a white gradient, dark uses a deep black gradient.
+- Single-image viewer: Shows one artwork at a time.
+- Navigation: Prev/Next buttons and keyboard arrows (←/→).
+- Detail modal: Tap/click the image for title, artist, date, medium, and link to The Met.
+- Preload buffer: Keeps up to 5 upcoming images preloaded for instant Next.
+- Request gating: Only fetches from The Met when the preload buffer isn’t full (less than 5/5).
+- Mobile detection: Detects mobile devices and enables a mobile-friendly layout automatically.
+- Mobile UI: Larger sticky controls and tightened layout on small screens.
+- Theme: Light/dark toggle saved in `localStorage`.
 
 ## How It Works
 
 - Search endpoint: `https://collectionapi.metmuseum.org/public/collection/v1/search?hasImages=true&q=art`
 - Object endpoint: `https://collectionapi.metmuseum.org/public/collection/v1/objects/{id}`
-- On load (and Refresh):
-  1) Optionally show cached items immediately (if available).
-  2) Search with `hasImages=true` and sample object IDs.
-  3) Fetch object details with limited concurrency and retry/backoff.
-  4) Build multiple image candidates, preferring “web-large” sizes; skip objects without images.
-  5) Render the gallery; prefetch is disabled on GitHub Pages to avoid bursts.
+- Load and navigate:
+  1) On start, fills a deck of up to 5 preloaded images.
+  2) Displays the current artwork; Next pops from the deck and pushes the previous item to history.
+  3) If the deck has fewer than 5 items, fetches more from The Met and preloads images to refill.
+  4) Clicking the image opens the existing details modal.
 
-## Configuration (in `app.js`)
+## Keyboard Shortcuts
 
-- `COUNT_PER_BATCH` (default 10): number of artworks per load.
-- `PREFETCH_BATCHES` (0 on GitHub Pages): number of background batches to prepare.
-- `MAX_DETAIL_CONCURRENCY` (2 on GitHub Pages): number of parallel object detail requests.
-- `FIRST_BATCH_MIN_READY` (default 6): gate initial render until this many images load.
-- `IMAGE_PRELOAD_TIMEOUT_MS` (default 8000): max wait for the initial gate.
-- `CACHE_TTL_MS` (default 24h): TTL for localStorage cache.
-- API base override: add before `app.js` in `index.html`:
+- `←` Previous artwork
+- `→` Next artwork
+- `Esc` Close details modal
 
-```
-<script>
-  window.MET_API_BASE = 'https://your-worker.workers.dev';
-  // Should forward /search and /objects/{id}
-</script>
-```
-
-## Project Structure
-
-```
-art-museum/
-├─ index.html    # Semantic layout, header, gallery, modal, footer
-├─ styles.css    # Gradients, glassy cards, responsive grid, modal, skeletons
-└─ app.js        # Fetching, retry/backoff, proxy fallback, caching, rendering
-```
 ## Credits
 
 - Data and images: The Metropolitan Museum of Art Collection API.
