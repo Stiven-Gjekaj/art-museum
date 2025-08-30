@@ -75,7 +75,7 @@
     if (!ids.length) throw new Error('No artworks found');
 
     // Over-sample to ensure enough with valid images
-    const sample = sampleIds(ids, Math.min(60, Math.max(count * 6, count + 10)));
+    const sample = sampleIds(ids, Math.min(120, Math.max(count * 8, count + 20)));
     const detailPromises = sample.map((id) =>
       fetchJson(OBJECT_URL + id, { signal }).catch(() => null)
     );
@@ -83,11 +83,15 @@
 
     const items = [];
     for (const d of details) {
-      const candidates = uniq([
+      // Prefer small/WebLarge for faster, more reliable loads
+      const additional = Array.isArray(d.additionalImages) ? d.additionalImages : [];
+      const prioritized = [
         d.primaryImageSmall,
+        ...additional.filter(Boolean).filter(u => /web[-]?large/i.test(u || '')),
         d.primaryImage,
-        ...(Array.isArray(d.additionalImages) ? d.additionalImages : []),
-      ].filter(Boolean).map(ensureHttps));
+        ...additional
+      ];
+      const candidates = uniq(prioritized.filter(Boolean).map(ensureHttps));
       const img = candidates[0] || '';
       if (!img) continue;
       items.push({
@@ -175,6 +179,8 @@
       img.loading = 'lazy';
       img.decoding = 'async';
       img.referrerPolicy = 'no-referrer';
+      // Allow cross-origin images without tainting canvas (future-friendly)
+      img.crossOrigin = 'anonymous';
 
       // Fallback through candidate images if any fail
       if (Array.isArray(item.images) && item.images.length > 1) {
@@ -265,6 +271,7 @@
       img.src = item.image;
       img.alt = item.alt;
       img.decoding = 'async';
+      img.referrerPolicy = 'no-referrer';
       mediaWrap.appendChild(img);
     }
     if (titleEl) titleEl.textContent = item.title;
