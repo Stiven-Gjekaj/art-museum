@@ -31,7 +31,9 @@
 
   // Prefetch configuration
   const COUNT_PER_BATCH = 10;
-  const PREFETCH_BATCHES = 3; // keep this many batches ready
+  const ENV_IS_GHPAGES = /\.github\.io$/i.test(location.hostname);
+  const PREFETCH_BATCHES = ENV_IS_GHPAGES ? 1 : 3; // keep this many batches ready
+  const MAX_DETAIL_CONCURRENCY = ENV_IS_GHPAGES ? 4 : 8;
   const FIRST_BATCH_MIN_READY = 6; // gate initial render until N images loaded
   const IMAGE_PRELOAD_TIMEOUT_MS = 8000;
 
@@ -68,7 +70,12 @@
 
   // Utilities
   async function fetchJson(url, options = {}) {
-    const res = await fetch(url, options);
+    const opts = {
+      referrerPolicy: 'no-referrer',
+      headers: { Accept: 'application/json', ...(options.headers || {}) },
+      ...options,
+    };
+    const res = await fetch(url, opts);
     if (!res.ok) throw new Error(`Network error ${res.status}`);
     return res.json();
   }
@@ -102,10 +109,20 @@
     }
   }
 
-  function uniq(arr) {
-    return Array.from(new Set(arr));
-  }
+  
 
+  // Retry wrapper for robustness
+  async function fetchJsonRetry(url, options = {}, { retries = 2, baseDelay = 250 } = {}) {
+    for (let attempt = 0; attempt <= retries; attempt++) {
+      try {
+        return await fetchJson(url, options);
+      } catch (err) {
+        if (attempt === retries) throw err;
+        const delay = baseDelay * Math.pow(2, attempt);
+        await new Promise((r) => setTimeout(r, delay));
+      }
+    }
+  }
   // Data fetching
     async function getObjectIdPool(signal) {
     if (objectIdPool && objectIdPool.length) return objectIdPool;
@@ -117,39 +134,48 @@ async function fetchRandomArtworks(count = 10, signal) {
     const ids = await getObjectIdPool(signal);
     if (!ids.length) throw new Error('No artworks found');
 
-    // Over-sample to ensure enough with valid images
-    const sample = sampleIds(ids, Math.min(200, Math.max(count * 8, count + 40)));
-    const detailPromises = sample.map((id) =>
-      fetchJson(OBJECT_URL + id, { signal }).catch(() => null)
-    );
-    const details = (await Promise.all(detailPromises)).filter(Boolean);
-
+    const used = new Set();
     const items = [];
-    for (const d of details) {
-      // Prefer small/WebLarge for faster, more reliable loads
-      const additional = Array.isArray(d.additionalImages) ? d.additionalImages : [];
-      const prioritized = [
-        d.primaryImageSmall,
-        ...additional.filter(Boolean).filter(u => /web[-]?large/i.test(u || '')),
-        d.primaryImage,
-        ...additional
-      ];
-      const candidates = uniq(prioritized.filter(Boolean).map(ensureHttps));
-      const img = candidates[0] || '';
-      if (!img) continue;
-      items.push({
-        id: d.objectID,
-        title: cleanText(d.title, 'Untitled'),
-        artist: cleanText(d.artistDisplayName, 'Unknown artist'),
-        date: cleanText(d.objectDate, ''),
-        image: img,
-        images: candidates,
-        alt: `${cleanText(d.title, 'Untitled')} by ${cleanText(d.artistDisplayName, 'Unknown artist')}`,
-        medium: cleanText(d.medium || d.creditLine || d.classification || d.department || '', ''),
-        culture: cleanText(d.culture || d.period || '', ''),
-        objectURL: d.objectURL || `https://www.metmuseum.org/art/collection/search/${d.objectID}`,
-      });
-      if (items.length >= count) break;
+    let rounds = 0;
+
+    while (items.length < count && rounds < 3) {
+      const sampleSize = Math.min(100, Math.max(count * 10, 60));
+      const candidateIds = sampleIds(ids.filter(id => !used.has(id)), sampleSize);
+      candidateIds.forEach((id) => used.add(id));
+
+      for (let i = 0; i < candidateIds.length && items.length < count; i += MAX_DETAIL_CONCURRENCY) {
+        const slice = candidateIds.slice(i, i + MAX_DETAIL_CONCURRENCY);
+        const details = await Promise.all(
+          slice.map((id) => fetchJsonRetry(OBJECT_URL + id, { signal }).catch(() => null))
+        );
+        for (const d of details) {
+          if (!d) continue;
+          const additional = Array.isArray(d.additionalImages) ? d.additionalImages : [];
+          const prioritized = [
+            d.primaryImageSmall,
+            ...additional.filter(Boolean).filter(u => /web[-]?large/i.test(u || '')),
+            d.primaryImage,
+            ...additional
+          ];
+          const candidates = uniq(prioritized.filter(Boolean).map(ensureHttps));
+          const img = candidates[0] || '';
+          if (!img) continue;
+          items.push({
+            id: d.objectID,
+            title: cleanText(d.title, 'Untitled'),
+            artist: cleanText(d.artistDisplayName, 'Unknown artist'),
+            date: cleanText(d.objectDate, ''),
+            image: img,
+            images: candidates,
+            alt: `${cleanText(d.title, 'Untitled')} by ${cleanText(d.artistDisplayName, 'Unknown artist')}`,
+            medium: cleanText(d.medium || d.creditLine || d.classification || d.department || '', ''),
+            culture: cleanText(d.culture || d.period || '', ''),
+            objectURL: d.objectURL || `https://www.metmuseum.org/art/collection/search/${d.objectID}`,
+          });
+          if (items.length >= count) break;
+        }
+      }
+      rounds += 1;
     }
 
     return items;
@@ -438,7 +464,7 @@ async function fetchRandomArtworks(count = 10, signal) {
       }
       setLoading(false);
       renderGallery(items);
-      prefetch.fill();
+      if (PREFETCH_BATCHES > 0) prefetch.fill();
     } catch (err) {
       setLoading(false);
       console.error(err);
@@ -456,7 +482,7 @@ async function fetchRandomArtworks(count = 10, signal) {
       const ready = prefetch.takeReady();
       if (ready && Array.isArray(ready) && ready.length) {
         renderGallery(ready);
-        prefetch.fill();
+        if (PREFETCH_BATCHES > 0) prefetch.fill();
       } else {
         await loadArtworks({ gateImages: false });
       }
@@ -475,6 +501,7 @@ async function fetchRandomArtworks(count = 10, signal) {
   initTheme();
   loadArtworks({ gateImages: true });
 })();
+
 
 
 
