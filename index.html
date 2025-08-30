@@ -7,20 +7,25 @@
     <title>Artwork Museum</title>
     <link rel="preconnect" href="https://collectionapi.metmuseum.org" crossorigin>
     <link rel="preconnect" href="https://images.metmuseum.org" crossorigin>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="./styles.css" />
   </head>
   <body>
     <a class="skip-link" href="#gallery">Skip to gallery</a>
 
     <header class="site-header container" role="banner">
-      <div class="brand">
-        <h1 class="site-title">Artwork Museum</h1>
-      </div>
-      <div class="actions">
+      <div class="actions actions--left">
         <button id="refreshBtn" class="btn primary" type="button" aria-label="Refresh artworks">
           <span class="btn__icon" aria-hidden="true">⟲</span>
           <span class="btn__text">Refresh</span>
         </button>
+      </div>
+      <div class="brand">
+        <h1 class="site-title" aria-label="Artwork Museum">Artwork Museum</h1>
+      </div>
+      <div class="actions actions--right">
         <button id="themeToggle" class="btn ghost" type="button" aria-label="Toggle light or dark theme">
           <span class="btn__icon" aria-hidden="true">🌗</span>
           <span class="btn__text">Theme</span>

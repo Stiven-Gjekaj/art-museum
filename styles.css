@@ -77,9 +77,9 @@ body {
 
 /* Header */
 .site-header {
-  display: flex;
+  display: grid;
+  grid-template-columns: auto 1fr auto;
   align-items: center;
-  justify-content: space-between;
   gap: 16px;
   background: var(--surface);
   border: 1px solid var(--border);
@@ -87,10 +87,21 @@ body {
   border-radius: calc(var(--radius) + 2px);
   backdrop-filter: blur(12px) saturate(125%);
   margin-top: 16px;
+  min-height: 96px;
 }
-.site-title { margin: 10px 0 0; letter-spacing: 0.3px; }
+.brand { text-align: center; justify-self: center; }
+.site-title {
+  margin: 0;
+  font-family: 'Bebas Neue', ui-sans-serif, -apple-system, Segoe UI, Roboto, Helvetica, Arial;
+  font-size: clamp(28px, 6vw, 56px);
+  line-height: 1;
+  letter-spacing: 1.5px;
+  text-transform: uppercase;
+}
 .tagline { margin: 4px 0 12px; color: var(--text-muted); }
 .actions { display: flex; gap: 10px; align-items: center; }
+.actions--left { justify-self: start; }
+.actions--right { justify-self: end; }
 
 /* Buttons */
 .btn {

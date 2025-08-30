@@ -1,5 +1,5 @@
-/*
-  Artwork Museum — Vanilla JS app
+﻿/*
+  Artwork Museum â€” Vanilla JS app
   - Fetches random artworks from The Met Collection API
   - Renders responsive, accessible gallery with modal details view
   - Includes loading skeletons, error states, and a theme toggle
@@ -27,6 +27,44 @@
   let currentAbort = null;
   let lastFocusedEl = null;
   const prefersReducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  let objectIdPool = null;
+
+  // Prefetch configuration
+  const COUNT_PER_BATCH = 10;
+  const PREFETCH_BATCHES = 3; // keep this many batches ready
+  const FIRST_BATCH_MIN_READY = 6; // gate initial render until N images loaded
+  const IMAGE_PRELOAD_TIMEOUT_MS = 8000;
+
+  const prefetch = {
+    ready: [], // resolved, fully-prepared batches
+    queue: [], // in-flight promises
+    filling: false,
+    async fill() {
+      if (this.filling) return;
+      this.filling = true;
+      try {
+        while (this.ready.length + this.queue.length < PREFETCH_BATCHES) {
+          const p = (async () => {
+            const items = await fetchRandomArtworks(COUNT_PER_BATCH);
+            await preloadImagesForItems(items, { minReady: items.length, timeout: IMAGE_PRELOAD_TIMEOUT_MS });
+            return items;
+          })();
+          this.queue.push(p);
+          p.then((items) => {
+            const i = this.queue.indexOf(p);
+            if (i >= 0) this.queue.splice(i, 1);
+            this.ready.push(items);
+          }).catch(() => {
+            const i = this.queue.indexOf(p);
+            if (i >= 0) this.queue.splice(i, 1);
+          });
+        }
+      } finally {
+        this.filling = false;
+      }
+    },
+    takeReady() { return this.ready.shift() || null; }
+  };
 
   // Utilities
   async function fetchJson(url, options = {}) {
@@ -69,13 +107,18 @@
   }
 
   // Data fetching
-  async function fetchRandomArtworks(count = 10, signal) {
+    async function getObjectIdPool(signal) {
+    if (objectIdPool && objectIdPool.length) return objectIdPool;
     const search = await fetchJson(SEARCH_URL, { signal });
-    const ids = Array.isArray(search.objectIDs) ? search.objectIDs : [];
+    objectIdPool = Array.isArray(search.objectIDs) ? search.objectIDs : [];
+    return objectIdPool;
+  }
+async function fetchRandomArtworks(count = 10, signal) {
+    const ids = await getObjectIdPool(signal);
     if (!ids.length) throw new Error('No artworks found');
 
     // Over-sample to ensure enough with valid images
-    const sample = sampleIds(ids, Math.min(120, Math.max(count * 8, count + 20)));
+    const sample = sampleIds(ids, Math.min(200, Math.max(count * 8, count + 40)));
     const detailPromises = sample.map((id) =>
       fetchJson(OBJECT_URL + id, { signal }).catch(() => null)
     );
@@ -110,6 +153,35 @@
     }
 
     return items;
+  }
+
+  // Image preloading helpers
+  function preloadImage(url) {
+    return new Promise((resolve) => {
+      const img = new Image();
+      img.decoding = 'async';
+      try { img.referrerPolicy = 'no-referrer'; } catch {}
+      try { img.crossOrigin = 'anonymous'; } catch {}
+      img.onload = () => resolve(true);
+      img.onerror = () => resolve(false);
+      img.src = url;
+    });
+  }
+
+  async function preloadImagesForItems(items, { minReady = items.length, timeout = 6000 } = {}) {
+    let loaded = 0;
+    const tasks = items.map((it) => preloadImage(it.image).then((ok) => { if (ok) loaded += 1; }));
+    const all = Promise.allSettled(tasks);
+    const gate = new Promise((resolve) => {
+      const start = Date.now();
+      const timer = setInterval(() => {
+        if (loaded >= minReady || Date.now() - start > timeout) {
+          clearInterval(timer);
+          resolve();
+        }
+      }, 50);
+    });
+    await Promise.race([all, gate]);
   }
 
   // Rendering
@@ -181,6 +253,7 @@
       img.referrerPolicy = 'no-referrer';
       // Allow cross-origin images without tainting canvas (future-friendly)
       img.crossOrigin = 'anonymous';
+      try { img.setAttribute('fetchpriority', index < 4 ? 'high' : 'low'); } catch {}
 
       // Fallback through candidate images if any fail
       if (Array.isArray(item.images) && item.images.length > 1) {
@@ -206,7 +279,7 @@
       title.textContent = item.title;
       const meta = document.createElement('p');
       meta.className = 'card__meta';
-      meta.textContent = item.artist + (item.date ? ` · ${item.date}` : '');
+      meta.textContent = item.date ? item.artist + ' - ' + item.date : item.artist;
       content.append(title, meta);
 
       btn.append(media, content);
@@ -272,10 +345,11 @@
       img.alt = item.alt;
       img.decoding = 'async';
       img.referrerPolicy = 'no-referrer';
+      try { img.setAttribute('fetchpriority', 'high'); } catch {}
       mediaWrap.appendChild(img);
     }
     if (titleEl) titleEl.textContent = item.title;
-    if (bylineEl) bylineEl.textContent = item.artist + (item.date ? ` · ${item.date}` : '');
+    if (bylineEl) bylineEl.textContent = item.date ? item.artist + ' - ' + item.date : item.artist;
     if (descEl) descEl.textContent = item.medium || '';
     if (extrasEl) extrasEl.textContent = item.culture ? `Culture/Period: ${item.culture}` : '';
     if (linkEl) linkEl.href = item.objectURL;
@@ -349,7 +423,7 @@
   }
 
   // Load flow
-  async function loadArtworks() {
+  async function loadArtworks({ gateImages = false } = {}) {
     // Cancel any in-flight fetches
     if (currentAbort) {
       try { currentAbort.abort(); } catch {}
@@ -358,9 +432,13 @@
     const { signal } = currentAbort;
     setLoading(true);
     try {
-      const items = await fetchRandomArtworks(10, signal);
+      const items = await fetchRandomArtworks(COUNT_PER_BATCH, signal);
+      if (gateImages) {
+        await preloadImagesForItems(items, { minReady: Math.min(FIRST_BATCH_MIN_READY, items.length), timeout: IMAGE_PRELOAD_TIMEOUT_MS });
+      }
       setLoading(false);
       renderGallery(items);
+      prefetch.fill();
     } catch (err) {
       setLoading(false);
       console.error(err);
@@ -371,14 +449,22 @@
   }
 
   // Event wiring
-  refreshBtn?.addEventListener('click', () => {
+  refreshBtn?.addEventListener('click', async () => {
     refreshBtn.disabled = true;
     refreshBtn.classList.add('spinning');
-    loadArtworks().finally(() => {
+    try {
+      const ready = prefetch.takeReady();
+      if (ready && Array.isArray(ready) && ready.length) {
+        renderGallery(ready);
+        prefetch.fill();
+      } else {
+        await loadArtworks({ gateImages: false });
+      }
+    } finally {
       refreshBtn.disabled = false;
       refreshBtn.classList.remove('spinning');
-    });
-  });
+    }  });
+
   themeToggleBtn?.addEventListener('click', () => {
     const current = document.documentElement.getAttribute('data-theme') || 'light';
     applyTheme(current === 'light' ? 'dark' : 'light');
@@ -387,5 +473,20 @@
 
   // Initialize
   initTheme();
-  loadArtworks();
+  loadArtworks({ gateImages: true });
 })();
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
