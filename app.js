@@ -551,23 +551,184 @@ async function fetchRandomArtworks(count = 10, signal) {
     }
   }
 
-  // Event wiring
-  refreshBtn?.addEventListener('click', async () => {
-    refreshBtn.disabled = true;
-    refreshBtn.classList.add('spinning');
-    try {
-      const ready = prefetch.takeReady();
-      if (ready && Array.isArray(ready) && ready.length) {
-        renderGallery(ready);
-        saveCache(ready);
-        if (PREFETCH_BATCHES > 0) prefetch.fill();
-      } else {
-        await loadArtworks({ gateImages: false });
+  // ===== Single-image viewer mode =====
+  const VIEWER_MODE = true;
+  const DECK_SIZE = 5; // number of preloaded upcoming items
+  let deck = [];
+  let past = [];
+  let currentItem = null;
+
+  const prevBtn = document.getElementById('prevBtn');
+  const nextBtn = document.getElementById('nextBtn');
+  const viewerCounterEl = document.getElementById('viewerCounter');
+
+  function isMobileDevice() {
+    const mm = (q) => (window.matchMedia ? window.matchMedia(q).matches : false);
+    const ua = (navigator.userAgent || '').toLowerCase();
+    const uaMobile = /(iphone|ipod|ipad|android|blackberry|bb10|mini|windows\sce|palm|mobile)/i.test(ua);
+    return uaMobile || mm('(max-width: 768px)') || mm('(pointer: coarse)');
+  }
+  function applyMobileClass() {
+    const el = document.documentElement;
+    if (isMobileDevice()) el.classList.add('is-mobile'); else el.classList.remove('is-mobile');
+  }
+
+  function clearNode(el){ while(el && el.firstChild){ el.removeChild(el.firstChild);} }
+
+  function setViewerLoading(isLoading) {
+    galleryEl.setAttribute('aria-busy', isLoading ? 'true' : 'false');
+    if (isLoading) {
+      clear(messageEl);
+      clear(galleryEl);
+      const sk = document.createElement('div');
+      sk.className = 'viewer-skeleton';
+      const media = document.createElement('div');
+      media.className = 'skeleton__media shimmer';
+      const lines = document.createElement('div');
+      lines.className = 'skeleton__lines';
+      const l1 = document.createElement('div'); l1.className = 'skeleton__line skeleton__line--med';
+      const l2 = document.createElement('div'); l2.className = 'skeleton__line';
+      const l3 = document.createElement('div'); l3.className = 'skeleton__line skeleton__line--short';
+      lines.append(l1, l2, l3);
+      sk.append(media, lines);
+      galleryEl.appendChild(sk);
+    }
+  }
+
+  function updateNavUI() {
+    if (prevBtn) prevBtn.disabled = past.length === 0;
+    if (nextBtn) nextBtn.disabled = deck.length === 0 && !currentItem;
+    if (viewerCounterEl) viewerCounterEl.textContent = String(past.length + (currentItem ? 1 : 0));
+  }
+
+  function renderViewerCurrent() {
+    if (!currentItem) return;
+    galleryEl.className = 'viewer';
+    clear(galleryEl);
+    const frame = document.createElement('div');
+    frame.className = 'viewer__frame';
+    const img = document.createElement('img');
+    img.className = 'viewer__img';
+    img.src = currentItem.image;
+    img.alt = currentItem.alt || '';
+    img.decoding = 'async';
+    try { img.referrerPolicy = 'no-referrer'; } catch {}
+    try { img.crossOrigin = 'anonymous'; } catch {}
+    img.addEventListener('click', () => openModal(currentItem, galleryEl));
+    frame.appendChild(img);
+
+    const caption = document.createElement('div');
+    caption.className = 'viewer__caption';
+    caption.textContent = currentItem.date ? `${currentItem.title} — ${currentItem.artist} (${currentItem.date})` : `${currentItem.title} — ${currentItem.artist}`;
+
+    galleryEl.append(frame, caption);
+  }
+
+  async function ensureDeckFilled(signal) {
+    // Only fetch if preloaded image slots are not 5/5
+    while (deck.length < DECK_SIZE) {
+      const need = DECK_SIZE - deck.length;
+      try {
+        const items = await fetchRandomArtworks(need, signal);
+        if (items && items.length) {
+          await preloadImagesForItems(items, { minReady: items.length, timeout: 4000 });
+          deck.push(...items);
+        } else {
+          break;
+        }
+      } catch (e) {
+        // stop trying this cycle; UI remains usable
+        break;
       }
-    } finally {
-      refreshBtn.disabled = false;
-      refreshBtn.classList.remove('spinning');
-    }  });
+    }
+  }
+
+  async function showNext() {
+    if (deck.length === 0) {
+      await ensureDeckFilled();
+    }
+    if (deck.length > 0) {
+      if (currentItem) past.push(currentItem);
+      currentItem = deck.shift();
+      renderViewerCurrent();
+      updateNavUI();
+      // Fill in background if needed
+      ensureDeckFilled();
+      try { saveCache([currentItem, ...deck]); } catch {}
+    }
+  }
+
+  function showPrev() {
+    if (past.length > 0) {
+      if (currentItem) deck.unshift(currentItem);
+      currentItem = past.pop();
+      if (deck.length > DECK_SIZE) deck.pop();
+      renderViewerCurrent();
+      updateNavUI();
+    }
+  }
+
+  async function initViewer() {
+    applyMobileClass();
+    galleryEl.className = 'viewer';
+    setViewerLoading(true);
+    const cached = loadCache();
+    deck = Array.isArray(cached) ? cached.slice(0, DECK_SIZE) : [];
+    // show first item quickly if cached exists
+    if (deck.length) {
+      currentItem = deck.shift();
+      renderViewerCurrent();
+      updateNavUI();
+    }
+    // ensure we have full deck
+    await ensureDeckFilled();
+    if (!currentItem) {
+      await showNext();
+    }
+    setViewerLoading(false);
+
+    // wire nav
+    prevBtn && prevBtn.addEventListener('click', showPrev);
+    nextBtn && nextBtn.addEventListener('click', showNext);
+    document.addEventListener('keydown', (e) => {
+      if (modalEl && !modalEl.classList.contains('hidden')) return; // ignore when modal open
+      if (e.key === 'ArrowRight') { e.preventDefault(); showNext(); }
+      if (e.key === 'ArrowLeft') { e.preventDefault(); showPrev(); }
+    });
+  }
+
+  function resetViewer() {
+    deck = []; past = []; currentItem = null;
+    initViewer();
+  }  // Event wiring
+  if (VIEWER_MODE) {
+    refreshBtn?.addEventListener('click', async () => {
+      refreshBtn.disabled = true;
+      refreshBtn.classList.add('spinning');
+      try { resetViewer(); } finally {
+        refreshBtn.disabled = false;
+        refreshBtn.classList.remove('spinning');
+      }
+    });
+  } else {
+    refreshBtn?.addEventListener('click', async () => {
+      refreshBtn.disabled = true;
+      refreshBtn.classList.add('spinning');
+      try {
+        const ready = prefetch.takeReady();
+        if (ready && Array.isArray(ready) && ready.length) {
+          renderGallery(ready);
+          saveCache(ready);
+          if (PREFETCH_BATCHES > 0) prefetch.fill();
+        } else {
+          await loadArtworks({ gateImages: false });
+        }
+      } finally {
+        refreshBtn.disabled = false;
+        refreshBtn.classList.remove('spinning');
+      }
+    });
+  }
 
   themeToggleBtn?.addEventListener('click', () => {
     const current = document.documentElement.getAttribute('data-theme') || 'light';
@@ -577,12 +738,16 @@ async function fetchRandomArtworks(count = 10, signal) {
 
   // Initialize
   initTheme();
-  const cached = loadCache();
-  if (cached && Array.isArray(cached) && cached.length) {
-    renderGallery(cached);
+  if (VIEWER_MODE) {
+    initViewer();
+  } else {
+    const cached = loadCache();
+    if (cached && Array.isArray(cached) && cached.length) {
+      renderGallery(cached);
+    }
+    loadArtworks({ gateImages: true, showSkeleton: !cached });
   }
-  loadArtworks({ gateImages: true, showSkeleton: !cached });
-})();
+})();;
 
 
 

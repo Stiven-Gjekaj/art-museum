@@ -1,10 +1,10 @@
-<!doctype html>
+﻿<!doctype html>
 <html lang="en" data-theme="light">
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <meta name="referrer" content="no-referrer" />
-    <meta name="description" content="Artwork Museum — A sleek, accessible gallery powered by The Met Collection API" />
+    <meta name="description" content="Artwork Museum â€” A sleek, accessible gallery powered by The Met Collection API" />
     <title>Artwork Museum</title>
     <link rel="preconnect" href="https://collectionapi.metmuseum.org" crossorigin>
     <link rel="preconnect" href="https://images.metmuseum.org" crossorigin>
@@ -19,7 +19,7 @@
     <header class="site-header container" role="banner">
       <div class="actions actions--left">
         <button id="refreshBtn" class="btn primary" type="button" aria-label="Refresh artworks">
-          <span class="btn__icon" aria-hidden="true">⟲</span>
+          <span class="btn__icon" aria-hidden="true">âŸ²</span>
           <span class="btn__text">Refresh</span>
         </button>
       </div>
@@ -28,7 +28,7 @@
       </div>
       <div class="actions actions--right">
         <button id="themeToggle" class="btn ghost" type="button" aria-label="Toggle light or dark theme">
-          <span class="btn__icon" aria-hidden="true">🌗</span>
+          <span class="btn__icon" aria-hidden="true">ðŸŒ—</span>
           <span class="btn__text">Theme</span>
         </button>
       </div>
@@ -38,6 +38,13 @@
       <section aria-labelledby="gallery-heading">
         <h2 id="gallery-heading" class="sr-only">Gallery</h2>
         <div id="gallery" class="gallery" aria-live="polite" aria-busy="false"></div>
+        <div class="viewer__nav" aria-hidden="false">
+          <button id="prevBtn" class="nav-btn nav-btn--prev btn icon" type="button" aria-label="Previous artwork">◀</button>
+          <div class="viewer__status" aria-live="polite">
+            <span id="viewerCounter" class="viewer__counter" aria-label="Position"></span>
+          </div>
+          <button id="nextBtn" class="nav-btn nav-btn--next btn icon" type="button" aria-label="Next artwork">▶</button>
+        </div>
       </section>
     </main>
 
@@ -46,7 +53,7 @@
     <div id="modal" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="modal-title" aria-describedby="modal-desc" aria-hidden="true">
       <div class="modal__overlay" data-close="true"></div>
       <div class="modal__dialog" role="document">
-        <button id="modalClose" class="modal__close btn icon" type="button" aria-label="Close details">✕</button>
+        <button id="modalClose" class="modal__close btn icon" type="button" aria-label="Close details">âœ•</button>
         <div class="modal__content">
           <!-- Filled dynamically -->
           <div class="modal__media"></div>
@@ -65,7 +72,7 @@
 
     <footer class="site-footer container">
       <p>
-        Powered by The Met Collection API. Images and data © The Metropolitan Museum of Art.
+        Powered by The Met Collection API. Images and data Â© The Metropolitan Museum of Art.
       </p>
       <p>Designed and built by Stiven Gjekaj.</p>
     </footer>

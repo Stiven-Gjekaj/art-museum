@@ -281,3 +281,63 @@ button.card .card__content:focus-visible, button.card .card__media:focus-visible
 @media (prefers-reduced-motion: reduce) {
   * { animation-duration: 0.001ms !important; animation-iteration-count: 1 !important; transition-duration: 0.001ms !important; scroll-behavior: auto !important; }
 }
+/* Viewer: single-image mode */
+.viewer {
+  position: relative;
+  display: grid;
+  grid-template-columns: 1fr;
+  place-items: center;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  overflow: hidden;
+  min-height: min(72vh, 70vw);
+}
+.viewer__frame {
+  width: 100%;
+  height: 100%;
+  display: grid;
+  place-items: center;
+}
+.viewer__img {
+  max-width: 100%;
+  max-height: 76vh;
+  width: 100%;
+  height: auto;
+  object-fit: contain;
+  background: rgba(0,0,0,0.04);
+}
+.viewer__caption { padding: 10px 14px; color: var(--text-muted); }
+
+/* Nav buttons */
+.viewer__nav {
+  margin-top: 10px;
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  align-items: center;
+  gap: 12px;
+}
+.nav-btn {
+  width: 48px; height: 48px; display: inline-flex; align-items: center; justify-content: center;
+  border-radius: 999px;
+}
+.nav-btn[disabled] { opacity: 0.5; cursor: not-allowed; }
+.viewer__counter { color: var(--text-muted); font-weight: 600; }
+
+/* Skeleton for viewer */
+.viewer-skeleton {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-soft);
+  overflow: hidden;
+  min-height: min(72vh, 70vw);
+}
+.viewer-skeleton .skeleton__media { aspect-ratio: 4 / 3; }
+
+/* Mobile mode tweaks */
+html.is-mobile .viewer { min-height: 58vh; }
+html.is-mobile .viewer__img { max-height: 58vh; }
+html.is-mobile .viewer__nav { position: sticky; bottom: 10px; z-index: 2; }
+html.is-mobile .nav-btn { width: 56px; height: 56px; }
