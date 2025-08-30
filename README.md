@@ -40,6 +40,21 @@ A sleek, single‑page gallery powered by The Met Collection API. Modern gradien
 - “Could not load artworks”: Check your internet connection and try again.
 - Browser extensions: Some privacy/ad blockers may block API requests; whitelist `collectionapi.metmuseum.org`.
 - CORS/Local file: Most browsers allow network fetches from a local file, but using a local server (see Quick Start) avoids edge cases.
+- CORS on GitHub Pages: The Met API occasionally returns 403 without CORS when many requests happen quickly from public origins. This app now:
+  - Limits request concurrency on `*.github.io`.
+  - Falls back to public CORS proxies (AllOrigins, isomorphic-git) when direct fetch fails.
+  - Supports a custom proxy base via `window.MET_API_BASE` for maximum reliability.
+
+### Optional: Use your own proxy (recommended)
+
+Add a tiny Cloudflare Worker that forwards Met API responses with CORS headers and caching. Then inject in `index.html` before `app.js`:
+
+```
+<script>
+  window.MET_API_BASE = 'https://your-worker.workers.dev';
+  // It should forward /search and /objects/{id}
+</script>
+```
 
 ## Credits
 

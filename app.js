@@ -19,9 +19,11 @@
   const headerEl = document.querySelector('header');
   const footerEl = document.querySelector('footer');
 
-  // API endpoints
-  const SEARCH_URL = 'https://collectionapi.metmuseum.org/public/collection/v1/search?hasImages=true&q=art';
-  const OBJECT_URL = 'https://collectionapi.metmuseum.org/public/collection/v1/objects/';
+  // API endpoints (supports optional proxy base via window.MET_API_BASE)
+  const DEFAULT_API_BASE = 'https://collectionapi.metmuseum.org/public/collection/v1';
+  const API_BASE = ((typeof window !== 'undefined' && window.MET_API_BASE) ? window.MET_API_BASE : DEFAULT_API_BASE).replace(/\/$/, '');
+  const SEARCH_URL = `${API_BASE}/search?hasImages=true&q=art`;
+  const OBJECT_URL = `${API_BASE}/objects/`;
 
   // State
   let currentAbort = null;
@@ -32,8 +34,8 @@
   // Prefetch configuration
   const COUNT_PER_BATCH = 10;
   const ENV_IS_GHPAGES = /\.github\.io$/i.test(location.hostname);
-  const PREFETCH_BATCHES = ENV_IS_GHPAGES ? 1 : 3; // keep this many batches ready
-  const MAX_DETAIL_CONCURRENCY = ENV_IS_GHPAGES ? 4 : 8;
+  const PREFETCH_BATCHES = ENV_IS_GHPAGES ? 0 : 3; // keep this many batches ready (disable on GH Pages)
+  const MAX_DETAIL_CONCURRENCY = ENV_IS_GHPAGES ? 2 : 8;
   const FIRST_BATCH_MIN_READY = 6; // gate initial render until N images loaded
   const IMAGE_PRELOAD_TIMEOUT_MS = 8000;
 
@@ -78,6 +80,36 @@
     const res = await fetch(url, opts);
     if (!res.ok) throw new Error(`Network error ${res.status}`);
     return res.json();
+  }
+
+  // Attempt through public CORS proxies if direct fetch fails
+  const PROXY_TRANSFORMS = [
+    (u) => `https://api.allorigins.win/raw?url=${encodeURIComponent(u)}`,
+    (u) => `https://cors.isomorphic-git.org/${u}`,
+  ];
+
+  async function fetchJsonViaProxy(url, options = {}) {
+    let lastErr;
+    for (const to of PROXY_TRANSFORMS) {
+      const proxied = to(url);
+      try {
+        const res = await fetch(proxied, { referrerPolicy: 'no-referrer', ...options });
+        if (!res.ok) { lastErr = new Error(`Proxy error ${res.status}`); continue; }
+        const txt = await res.text();
+        return JSON.parse(txt);
+      } catch (e) {
+        lastErr = e;
+      }
+    }
+    throw lastErr || new Error('All proxies failed');
+  }
+
+  async function fetchJsonAny(url, options = {}) {
+    try {
+      return await fetchJson(url, options);
+    } catch (e) {
+      return await fetchJsonViaProxy(url, options);
+    }
   }
 
   function sampleIds(ids, n) {
@@ -142,7 +174,7 @@
   async function fetchJsonRetry(url, options = {}, { retries = 2, baseDelay = 250 } = {}) {
     for (let attempt = 0; attempt <= retries; attempt++) {
       try {
-        return await fetchJson(url, options);
+        return await fetchJsonAny(url, options);
       } catch (err) {
         if (attempt === retries) throw err;
         const delay = baseDelay * Math.pow(2, attempt);
@@ -153,7 +185,7 @@
   // Data fetching
     async function getObjectIdPool(signal) {
     if (objectIdPool && objectIdPool.length) return objectIdPool;
-    const search = await fetchJson(SEARCH_URL, { signal });
+    const search = await fetchJsonRetry(SEARCH_URL, { signal });
     objectIdPool = Array.isArray(search.objectIDs) ? search.objectIDs : [];
     return objectIdPool;
   }
@@ -201,6 +233,8 @@ async function fetchRandomArtworks(count = 10, signal) {
           });
           if (items.length >= count) break;
         }
+        // Gentle pacing to avoid bursts
+        await new Promise((r) => setTimeout(r, 120));
       }
       rounds += 1;
     }
