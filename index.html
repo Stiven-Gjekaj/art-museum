@@ -18,17 +18,14 @@
 
     <header class="site-header container" role="banner">
       <div class="actions actions--left">
-        <button id="refreshBtn" class="btn primary" type="button" aria-label="Refresh artworks">
-          <span class="btn__icon" aria-hidden="true">âŸ²</span>
-          <span class="btn__text">Refresh</span>
-        </button>
+        
       </div>
       <div class="brand">
         <h1 class="site-title" aria-label="Artwork Museum">Artwork Museum</h1>
       </div>
       <div class="actions actions--right">
         <button id="themeToggle" class="btn ghost" type="button" aria-label="Toggle light or dark theme">
-          <span class="btn__icon" aria-hidden="true">ðŸŒ—</span>
+          <span class="btn__icon" aria-hidden="true">&#9728;</span>
           <span class="btn__text">Theme</span>
         </button>
       </div>
@@ -39,11 +36,11 @@
         <h2 id="gallery-heading" class="sr-only">Gallery</h2>
         <div id="gallery" class="gallery" aria-live="polite" aria-busy="false"></div>
         <div class="viewer__nav" aria-hidden="false">
-          <button id="prevBtn" class="nav-btn nav-btn--prev btn icon" type="button" aria-label="Previous artwork">◀</button>
+          <button id="prevBtn" class="nav-btn nav-btn--prev btn icon" type="button" aria-label="Previous artwork">&larr;</button>
           <div class="viewer__status" aria-live="polite">
             <span id="viewerCounter" class="viewer__counter" aria-label="Position"></span>
           </div>
-          <button id="nextBtn" class="nav-btn nav-btn--next btn icon" type="button" aria-label="Next artwork">▶</button>
+          <button id="nextBtn" class="nav-btn nav-btn--next btn icon" type="button" aria-label="Next artwork">&rarr;</button>
         </div>
       </section>
     </main>
@@ -80,3 +77,5 @@
     <script src="./app.js" defer></script>
   </body>
   </html>
+
+

@@ -11,7 +11,6 @@
   // DOM elements
   const galleryEl = document.getElementById('gallery');
   const messageEl = document.getElementById('message');
-  const refreshBtn = document.getElementById('refreshBtn');
   const themeToggleBtn = document.getElementById('themeToggle');
   const modalEl = document.getElementById('modal');
   const modalCloseBtn = document.getElementById('modalClose');
@@ -506,10 +505,23 @@ async function fetchRandomArtworks(count = 10, signal) {
 
   // Theme toggle
   function applyTheme(theme) {
-    document.documentElement.setAttribute('data-theme', theme);
-    try { localStorage.setItem('am-theme', theme); } catch {}
+  document.documentElement.setAttribute('data-theme', theme);
+  try { localStorage.setItem('am-theme', theme); } catch {}
+  try { syncThemeToggle(); } catch {}
   }
-  function initTheme() {
+  function syncThemeToggle() {
+  if (!themeToggleBtn) return;
+  const theme = document.documentElement.getAttribute('data-theme') || 'light';
+  const isDark = theme === 'dark';
+  themeToggleBtn.setAttribute('aria-pressed', isDark ? 'true' : 'false');
+  themeToggleBtn.setAttribute('aria-label', isDark ? 'Switch to light theme' : 'Switch to dark theme');
+  const textEl = themeToggleBtn.querySelector('.btn__text');
+  if (textEl) textEl.textContent = isDark ? 'Dark' : 'Light';
+  const ic = themeToggleBtn.querySelector('.btn__icon');
+  if (ic) ic.textContent = isDark ? '🌙' : '☀️';
+}
+
+function initTheme() {
     const saved = (() => { try { return localStorage.getItem('am-theme'); } catch { return null; } })();
     if (saved === 'dark' || saved === 'light') {
       applyTheme(saved);
@@ -517,6 +529,7 @@ async function fetchRandomArtworks(count = 10, signal) {
     }
     const prefersDark = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
     applyTheme(prefersDark ? 'dark' : 'light');
+    try { syncThemeToggle(); } catch {}
   }
 
   // Load flow
@@ -698,69 +711,27 @@ async function fetchRandomArtworks(count = 10, signal) {
   }
 
   function resetViewer() {
-    deck = []; past = []; currentItem = null;
-    initViewer();
-  }  // Event wiring
-  if (VIEWER_MODE) {
-    refreshBtn?.addEventListener('click', async () => {
-      refreshBtn.disabled = true;
-      refreshBtn.classList.add('spinning');
-      try { resetViewer(); } finally {
-        refreshBtn.disabled = false;
-        refreshBtn.classList.remove('spinning');
-      }
-    });
-  } else {
-    refreshBtn?.addEventListener('click', async () => {
-      refreshBtn.disabled = true;
-      refreshBtn.classList.add('spinning');
-      try {
-        const ready = prefetch.takeReady();
-        if (ready && Array.isArray(ready) && ready.length) {
-          renderGallery(ready);
-          saveCache(ready);
-          if (PREFETCH_BATCHES > 0) prefetch.fill();
-        } else {
-          await loadArtworks({ gateImages: false });
-        }
-      } finally {
-        refreshBtn.disabled = false;
-        refreshBtn.classList.remove('spinning');
-      }
-    });
+  deck = []; past = []; currentItem = null;
+  initViewer();
+}
+
+// Event wiring
+themeToggleBtn?.addEventListener('click', () => {
+  const current = document.documentElement.getAttribute('data-theme') || 'light';
+  applyTheme(current === 'light' ? 'dark' : 'light');
+});
+modalCloseBtn?.addEventListener('click', closeModal);
+
+// Initialize
+initTheme();
+if (VIEWER_MODE) {
+  initViewer();
+} else {
+  const cached = loadCache();
+  if (cached && Array.isArray(cached) && cached.length) {
+    renderGallery(cached);
   }
-
-  themeToggleBtn?.addEventListener('click', () => {
-    const current = document.documentElement.getAttribute('data-theme') || 'light';
-    applyTheme(current === 'light' ? 'dark' : 'light');
-  });
-  modalCloseBtn?.addEventListener('click', closeModal);
-
-  // Initialize
-  initTheme();
-  if (VIEWER_MODE) {
-    initViewer();
-  } else {
-    const cached = loadCache();
-    if (cached && Array.isArray(cached) && cached.length) {
-      renderGallery(cached);
-    }
-    loadArtworks({ gateImages: true, showSkeleton: !cached });
-  }
-})();;
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+  loadArtworks({ gateImages: true, showSkeleton: !cached });
+}
+})();
 
