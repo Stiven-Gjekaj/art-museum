@@ -6,15 +6,6 @@ A sleek, single‑page gallery powered by The Met Collection API. Modern gradien
 - Fast: parallel fetch, lazy images, skeleton loaders
 - Accessible: semantic structure, keyboard navigation, focus trap, proper ARIA
 
-## Quick Start
-
-- Open `art-museum/index.html` in a modern browser.
-- Optional: serve locally for a cleaner dev experience.
-  - Python: `python -m http.server 5173` then visit `http://localhost:5173/art-museum/`
-  - Node (npx): `npx serve -l 5173` and open the printed URL
-
-The app fetches a random set of 10 artworks with images each time you load or press Refresh.
-
 ## Features
 
 - Random artworks: Uses The Met search API with `hasImages=true`, samples IDs, then fetches object details in parallel.
@@ -25,15 +16,6 @@ The app fetches a random set of 10 artworks with images each time you load or pr
 - Loading & errors: shimmer skeleton cards during fetch; friendly error with “Try again”.
 - Accessibility: semantic HTML, keyboard focus styles, cards are buttons (Enter to open), dialog with `aria-modal`, focus trap, and ESC to close; meaningful alt text.
 - Theme: light/dark toggle saved in `localStorage`.
-
-## Project Structure
-
-```
-art-museum/
-├─ index.html    # Semantic layout and modal markup
-├─ styles.css    # Gradient background, glassy cards, responsive grid, modal
-└─ app.js        # Data fetching, rendering, modal logic, loading/error states
-```
 
 ## How It Works
 
@@ -52,11 +34,6 @@ art-museum/
 - Alt text: “{title} by {artist}”.
 - Reduced motion: honors `prefers-reduced-motion` for quicker transitions.
 
-## Customization
-
-- Change the number of artworks: in `app.js`, the default is 10 in `loadArtworks()` / `fetchRandomArtworks(count=10)`.
-- Change the query: update the `SEARCH_URL` in `app.js` (e.g., replace `q=art` with `q=painting`).
-- Tweak styles: edit CSS variables in `styles.css` for colors, radius, and shadows.
 
 ## Troubleshooting
 
