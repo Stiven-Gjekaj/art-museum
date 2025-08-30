@@ -109,6 +109,33 @@
     }
   }
 
+  // Set helper
+  function uniq(arr) {
+    return Array.from(new Set(arr));
+  }
+
+  // Tiny cache (localStorage)
+  const CACHE_KEY = 'am-cache-v1';
+  const CACHE_TTL_MS = 1000 * 60 * 60 * 24; // 24 hours
+  function saveCache(items) {
+    try {
+      const payload = { ts: Date.now(), items };
+      localStorage.setItem(CACHE_KEY, JSON.stringify(payload));
+    } catch {}
+  }
+  function loadCache() {
+    try {
+      const raw = localStorage.getItem(CACHE_KEY);
+      if (!raw) return null;
+      const payload = JSON.parse(raw);
+      if (!payload || !Array.isArray(payload.items)) return null;
+      if (typeof payload.ts !== 'number' || Date.now() - payload.ts > CACHE_TTL_MS) return null;
+      return payload.items;
+    } catch {
+      return null;
+    }
+  }
+
   
 
   // Retry wrapper for robustness
@@ -449,14 +476,19 @@ async function fetchRandomArtworks(count = 10, signal) {
   }
 
   // Load flow
-  async function loadArtworks({ gateImages = false } = {}) {
+  async function loadArtworks({ gateImages = false, showSkeleton = true } = {}) {
     // Cancel any in-flight fetches
     if (currentAbort) {
       try { currentAbort.abort(); } catch {}
     }
     currentAbort = new AbortController();
     const { signal } = currentAbort;
-    setLoading(true);
+    if (showSkeleton) {
+      setLoading(true);
+    } else {
+      // Still mark busy for AT; keep current gallery (e.g., cached) visible
+      galleryEl.setAttribute('aria-busy', 'true');
+    }
     try {
       const items = await fetchRandomArtworks(COUNT_PER_BATCH, signal);
       if (gateImages) {
@@ -464,6 +496,7 @@ async function fetchRandomArtworks(count = 10, signal) {
       }
       setLoading(false);
       renderGallery(items);
+      saveCache(items);
       if (PREFETCH_BATCHES > 0) prefetch.fill();
     } catch (err) {
       setLoading(false);
@@ -482,6 +515,7 @@ async function fetchRandomArtworks(count = 10, signal) {
       const ready = prefetch.takeReady();
       if (ready && Array.isArray(ready) && ready.length) {
         renderGallery(ready);
+        saveCache(ready);
         if (PREFETCH_BATCHES > 0) prefetch.fill();
       } else {
         await loadArtworks({ gateImages: false });
@@ -499,7 +533,11 @@ async function fetchRandomArtworks(count = 10, signal) {
 
   // Initialize
   initTheme();
-  loadArtworks({ gateImages: true });
+  const cached = loadCache();
+  if (cached && Array.isArray(cached) && cached.length) {
+    renderGallery(cached);
+  }
+  loadArtworks({ gateImages: true, showSkeleton: !cached });
 })();
 
 
