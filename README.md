@@ -7,14 +7,6 @@ A sleek, single-page gallery powered by The Met Collection API. Modern light/dar
 - Reliable: retry/backoff and CORS-friendly proxy fallbacks
 - Accessible: semantic structure, keyboard navigation, focus trap, proper ARIA
 
-## Quick Start
-
-- Open `art-museum/index.html` in a modern browser, or
-- Serve locally for a cleaner dev experience:
-  - Python: `python -m http.server 5173` then open `http://localhost:5173/art-museum/`
-  - Node (npx): `npx serve -l 5173` and open the printed URL
-- Hosted on GitHub Pages works out of the box.
-
 ## Features
 
 - Random artworks: Searches The Met API with `hasImages=true` and fetches object details.
@@ -71,16 +63,6 @@ art-museum/
 ├─ styles.css    # Gradients, glassy cards, responsive grid, modal, skeletons
 └─ app.js        # Fetching, retry/backoff, proxy fallback, caching, rendering
 ```
-
-## Troubleshooting
-
-- “Blocked by CORS” on GitHub Pages: The Met API may return 403 without CORS headers when requests spike. This app now:
-  - Limits concurrency and disables background prefetch on `*.github.io`.
-  - Falls back to public CORS proxies when direct fetch fails.
-  - Allows a custom proxy via `window.MET_API_BASE` for maximum reliability.
-- Still slow? Reduce `MAX_DETAIL_CONCURRENCY` to 1 and leave `PREFETCH_BATCHES = 0`.
-- Extensions: Some privacy/ad blockers may block `images.metmuseum.org`. Whitelist that domain.
-
 ## Credits
 
 - Data and images: The Metropolitan Museum of Art Collection API.
